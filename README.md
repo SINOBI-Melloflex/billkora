@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://via.placeholder.com/150/0f172a/ffffff?text=Billkora" alt="Billkora Logo" width="130" />
+  <img src="assets/billcora-logo.png" alt="Billkora Logo" width="140" />
 </p>
 
 <h1 align="center">Billkora</h1>
@@ -43,4 +43,10 @@ Get the latest installer for your operating system from the [Releases Page](http
 
 ## 🔄 How Auto-Updates Work
 
-Billkora automatically checks this GitHub repository on startup. If a new version is released, the application securely downloads
+Billkora automatically checks this GitHub repository on startup. If a new version is released, the application securely downloads and applies updates in the background, ensuring your business operations always run on the latest and most secure version.
+
+---
+
+## 📄 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
