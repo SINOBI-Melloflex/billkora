@@ -76,3 +76,17 @@ jobs:
           $r = Invoke-WebRequest "http://127.0.0.1:$port/login" -UseBasicParsing
           if ($r.StatusCode -ne 200) { throw "app not up after update" }
           Write-Host "update OK"
+
+      - name: Debug report
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host "--- Setup log ---"
+          Get-Content "$env:TEMP\Billcora-Setup.log" -ErrorAction SilentlyContinue
+          Write-Host "--- Report files ---"
+          Get-ChildItem "$env:USERPROFILE\Desktop","C:\Billcora" -Filter "Billcora-Setup-Report*.txt" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName; Get-Content $_.FullName }
+          Write-Host "--- backups folder ---"
+          Get-ChildItem C:\Billcora\backups -Recurse -Depth 1 -ErrorAction SilentlyContinue | Select-Object -First 30 FullName
+          Write-Host "--- manual robocopy test ---"
+          robocopy "C:\Billcora" "$env:RUNNER_TEMP\bk-test" /E /XD "C:\Billcora\node_modules" "C:\Billcora\runtime" "C:\Billcora\webview2" "C:\Billcora\logs" "C:\Billcora\backups" /NFL /NDL /NP
+          Write-Host "robocopy rc=$LASTEXITCODE"
