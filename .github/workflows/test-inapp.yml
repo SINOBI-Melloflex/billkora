@@ -1,0 +1,99 @@
+name: Test in-app update
+on:
+  workflow_dispatch:
+
+jobs:
+  inapp:
+    name: Windows - install 0.2.5, then update from inside the app
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - name: Install 0.2.5 (silent)
+        shell: pwsh
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest "https://github.com/SINOBI-Melloflex/billkora/releases/download/v0.2.5/Billcora-Setup-0.2.5.exe" -OutFile "$env:RUNNER_TEMP\Old.exe"
+          $p = Start-Process "$env:RUNNER_TEMP\Old.exe" -ArgumentList "/silent" -PassThru
+          if (-not $p.WaitForExit(900000)) { try { $p.Kill() } catch {}; throw "Old setup did not finish" }
+          if ($p.ExitCode -ne 0) { throw "old install failed" }
+          Write-Host "version: $((Get-Content C:\Billcora\version.txt).Trim())"
+
+      - name: Put marker data in database and config
+        shell: pwsh
+        run: |
+          $js = "const D=require('C:/Billcora/node_modules/better-sqlite3');const d=new D('C:/Billcora/billing.db');d.exec('create table if not exists zz_marker(x)');d.exec('insert into zz_marker values(77)');console.log('marker written');"
+          Set-Content -Path "$env:RUNNER_TEMP\mark.js" -Value $js
+          & C:\Billcora\runtime\node.exe "$env:RUNNER_TEMP\mark.js"
+          if ($LASTEXITCODE -ne 0) { throw "marker write failed" }
+          [IO.File]::AppendAllText("C:\Billcora\config.js", "`n// kept-marker`n")
+
+      - name: Trigger the update from inside the app
+        shell: pwsh
+        run: |
+          $app = "C:\Billcora"
+          $port = (Get-Content "$app\port.txt").Trim()
+          $routes = @(Select-String -Path "$app\updater.js","$app\server.js" -Pattern "/app/update/[a-z-]+" -AllMatches | ForEach-Object { $_.Matches.Value } | Sort-Object -Unique)
+          Write-Host ("routes: " + ($routes -join ", "))
+          $null = Invoke-WebRequest "http://127.0.0.1:$port/login" -Method Post -Body @{ username = "admin"; password = "admin123" } -SessionVariable s -UseBasicParsing
+          $c = Invoke-RestMethod "http://127.0.0.1:$port/app/update/check" -Method Post -WebSession $s
+          Write-Host ("check: " + ($c | ConvertTo-Json -Compress))
+          if (-not $c.available) { throw "app does not see the new version" }
+          $done = $false
+          foreach ($r in '/app/update/install','/app/update/apply','/app/update/start','/app/update/run') {
+            if ($routes -contains $r) {
+              try { $x = Invoke-RestMethod "http://127.0.0.1:$port$r" -Method Post -WebSession $s; Write-Host ("triggered " + $r + ": " + ($x | ConvertTo-Json -Compress)); $done = $true; break }
+              catch { Write-Host ("failed " + $r + ": " + $_.Exception.Message) }
+            }
+          }
+          if (-not $done) { throw "could not trigger install route" }
+
+      - name: Wait for the app to update itself
+        shell: pwsh
+        run: |
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            Start-Sleep 10
+            $v = ""
+            try { $v = (Get-Content C:\Billcora\version.txt -ErrorAction Stop).Trim() } catch {}
+            $up = $false
+            try { $port = (Get-Content C:\Billcora\port.txt).Trim(); $up = ((Invoke-WebRequest "http://127.0.0.1:$port/login" -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200) } catch {}
+            Write-Host ("t=" + ($i*10) + "s version=" + $v + " up=" + $up)
+            if ($v -eq '0.2.6' -and $up) { $ok = $true; break }
+          }
+          if (-not $ok) { throw "app did not update itself in 10 minutes" }
+
+      - name: Data, config, backup and pages are correct
+        shell: pwsh
+        run: |
+          $js = "const D=require('C:/Billcora/node_modules/better-sqlite3');const d=new D('C:/Billcora/billing.db',{readonly:true});console.log('MARKER=' + d.prepare('select x from zz_marker').get().x);"
+          Set-Content -Path "$env:RUNNER_TEMP\check.js" -Value $js
+          $o = (& C:\Billcora\runtime\node.exe "$env:RUNNER_TEMP\check.js") -join ''
+          Write-Host $o
+          if ($o -notmatch 'MARKER=77') { throw "database marker lost" }
+          if (-not (Select-String -Path C:\Billcora\config.js -Pattern "kept-marker" -Quiet)) { throw "config.js was overwritten" }
+          $b = @(Get-ChildItem C:\Billcora\backups -Directory -Filter "update-before-*")
+          Write-Host "backups: $($b.Count)"
+          if ($b.Count -lt 1) { throw "no backup folder" }
+          $port = (Get-Content C:\Billcora\port.txt).Trim()
+          $null = Invoke-WebRequest "http://127.0.0.1:$port/login" -Method Post -Body @{ username = "admin"; password = "admin123" } -SessionVariable s -UseBasicParsing
+          foreach ($pg in "/", "/zones", "/packages", "/payments", "/settings", "/users") {
+            $r = Invoke-WebRequest "http://127.0.0.1:$port$pg" -WebSession $s -UseBasicParsing
+            Write-Host "$pg -> $($r.StatusCode)"
+            if ($r.StatusCode -ne 200 -or $r.Content -match "<title>Sign in") { throw "$pg failed" }
+          }
+          Write-Host "IN-APP UPDATE OK"
+
+      - name: Debug report
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host "--- SYSTEM temp log ---"
+          Get-Content "C:\Windows\Temp\Billcora-Setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 40
+          Write-Host "--- user temp log ---"
+          Get-Content "$env:TEMP\Billcora-Setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 40
+          Write-Host "--- update-state ---"
+          Get-Content C:\Billcora\update-state.json -ErrorAction SilentlyContinue
+          Write-Host "--- app log ---"
+          Get-Content C:\Billcora\logs\app.log -ErrorAction SilentlyContinue | Select-Object -Last 30
+          Write-Host "--- tasks ---"
+          schtasks /Query /TN BillcoraUpdate /V /FO LIST 2>&1 | Select-String "Status|Last Result|Task To Run|Run As"
