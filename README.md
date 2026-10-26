@@ -1,2 +1,46 @@
-# billkora
-Enterprise ISP &amp; IT Infrastructure Billing System designed for automated management, invoicing, and cross-platform operations.
+<p align="center">
+  <img src="https://via.placeholder.com/150/0f172a/ffffff?text=Billkora" alt="Billkora Logo" width="130" />
+</p>
+
+<h1 align="center">Billkora</h1>
+<p align="center"><b>Universal Billing, Collection & Subscription Management System</b></p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/SINOBI-Melloflex/billkora?style=flat-square&color=blue" alt="Release">
+  <img src="https://img.shields.io/github/license/SINOBI-Melloflex/billkora?style=flat-square" alt="License">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey?style=flat-square" alt="Platforms">
+</p>
+
+---
+
+## 🚀 Overview
+
+**Billkora** is an enterprise-grade, highly versatile desktop billing and customer management solution. While engineered with robust features for ISPs, WISPs, and IT infrastructure providers, its modular design makes it universally adaptable for **any business** that handles recurring billing, client subscriptions, custom invoicing, and service collections.
+
+Whether you run a software firm, digital agency, training institute, cable TV network, or a service-based enterprise, Billkora streamlines your entire financial workflow.
+
+---
+
+## ✨ Core Features
+
+- **Smart Invoicing & Billing Cycles:** Automated recurring invoice generation, custom billing cycles, and instant payment tracking.
+- **Universal Multi-Industry Support:** Easily configurable for ISPs, IT companies, digital service agencies, subscriptions, and rental businesses.
+- **Seamless Payment Tracking:** Record manual collections and integrate digital payment gateways effortlessly.
+- **Client & Subscription Management:** Keep track of active clients, package upgrades, expiry logs, and dues in one clean dashboard.
+- **Built-in Auto-Update System:** Features a seamless, built-in updater that fetches the latest patches and updates directly from GitHub without manual hassle.
+- **Cross-Platform Compatibility:** Native performance across both **Windows** and **Linux** environments.
+
+---
+
+## 📦 Download & Installation
+
+Get the latest installer for your operating system from the [Releases Page](https://github.com/SINOBI-Melloflex/billkora/releases/latest):
+
+- **Windows:** Download the latest `.exe` setup file.
+- **Linux:** Download the `.AppImage` or `.deb` package.
+
+---
+
+## 🔄 How Auto-Updates Work
+
+Billkora automatically checks this GitHub repository on startup. If a new version is released, the application securely downloads
