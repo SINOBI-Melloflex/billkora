@@ -33,7 +33,10 @@ jobs:
           Set-Content -Path "$env:RUNNER_TEMP\mark.js" -Value $js
           & C:\Billcora\runtime\node.exe "$env:RUNNER_TEMP\mark.js"
           if ($LASTEXITCODE -ne 0) { throw "marker write failed" }
-          Add-Content C:\Billcora\config.js "// kept-marker"
+          [IO.File]::AppendAllText("C:\Billcora\config.js", "`n// kept-marker`n")
+          Write-Host "=== config.js BEFORE update ==="
+          Get-Content C:\Billcora\config.js
+          (Get-FileHash C:\Billcora\config.js).Hash
 
       - name: Update to latest with the new Setup
         shell: pwsh
@@ -52,6 +55,9 @@ jobs:
           $o = (& C:\Billcora\runtime\node.exe "$env:RUNNER_TEMP\check.js") -join ''
           Write-Host $o
           if ($o -notmatch 'MARKER=42') { throw "database marker lost" }
+          Write-Host "=== config.js AFTER update ==="
+          Get-Content C:\Billcora\config.js
+          (Get-FileHash C:\Billcora\config.js).Hash
           if (-not (Select-String -Path C:\Billcora\config.js -Pattern "kept-marker" -Quiet)) { throw "config.js was overwritten" }
           $b = @(Get-ChildItem C:\Billcora\backups -Directory -Filter "update-before-*")
           Write-Host "backups: $($b.Count)"
