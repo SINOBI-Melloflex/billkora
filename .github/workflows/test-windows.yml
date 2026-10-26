@@ -64,7 +64,7 @@ jobs:
           if ($b.Count -lt 1) { throw "no backup folder" }
           $v = (Get-Content C:\Billcora\version.txt).Trim()
           Write-Host "version: $v"
-          if ($v -ne '0.2.4') { throw "version not updated" }
+          if ($v -ne '0.2.5') { throw "version not updated" }
           $port = (Get-Content C:\Billcora\port.txt).Trim()
           $null = Invoke-WebRequest "http://127.0.0.1:$port/login" -Method Post -Body @{ username = "admin"; password = "admin123" } -SessionVariable s -UseBasicParsing
           foreach ($pg in "/", "/zones", "/packages", "/payments", "/settings", "/users") {
@@ -108,7 +108,7 @@ jobs:
           $port = (Get-Content C:\Billcora\port.txt).Trim()
           $v = (Get-Content C:\Billcora\version.txt).Trim()
           Write-Host "version: $v"
-          if ($v -ne '0.2.4') { throw "wrong version" }
+          if ($v -ne '0.2.5') { throw "wrong version" }
           $null = Invoke-WebRequest "http://127.0.0.1:$port/login" -Method Post -Body @{ username = "admin"; password = "admin123" } -SessionVariable s -UseBasicParsing
           foreach ($pg in "/", "/zones", "/packages", "/payments", "/settings", "/users") {
             $r = Invoke-WebRequest "http://127.0.0.1:$port$pg" -WebSession $s -UseBasicParsing
