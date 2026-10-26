@@ -13,6 +13,47 @@
 
 ---
 
+<!-- billcora-download-start -->
+## Download and Install
+
+<div align="center">
+
+[![Download for Windows](https://img.shields.io/badge/Download%20for-Windows-0078D6?style=for-the-badge)](https://github.com/SINOBI-Melloflex/billkora/releases/latest/download/Billcora-Setup.exe)
+[![All downloads](https://img.shields.io/badge/All%20downloads-Releases-2ea44f?style=for-the-badge)](https://github.com/SINOBI-Melloflex/billkora/releases/latest)
+
+</div>
+
+### Windows 10 / 11 (64-bit)
+
+1. Click **Download for Windows** above. A file named `Billcora-Setup.exe` is downloaded.
+2. Double-click it. If Windows asks for permission, click **Yes**.
+3. If a blue **"Windows protected your PC"** box appears, click **More info**, then **Run anyway**. (This happens because the file is not code-signed yet.)
+4. Choose the folder (the default is fine) and click **Install**. Then click **Open Billcora**.
+
+A new PC gets a fresh install. A PC that already has Billcora is **updated**: your customers, bills and settings are kept, and a backup is taken first.
+
+### Linux (beta)
+
+Works on Ubuntu, Debian, Fedora, Rocky/Alma/CentOS (x64 or ARM64) with systemd. Open a terminal and paste:
+
+```bash
+curl -fsSL https://github.com/SINOBI-Melloflex/billkora/releases/latest/download/install.sh | sudo bash
+```
+
+It installs everything Billcora needs, starts it automatically when the computer boots, and prints the web address (by default `http://localhost:4010`). To update later, run the same command again. Your data is kept.
+
+### First login
+
+Username `admin`, password `admin123`. Please change the password right after you log in.
+
+### বাংলায় সংক্ষেপে
+
+- **Windows:** ওপরের নীল **Download for Windows** বাটনে ক্লিক করুন, নামা ফাইলে ডাবল ক্লিক করুন, তারপর Install চাপুন। SmartScreen আসলে More info, তারপর Run anyway চাপুন।
+- **Linux:** টার্মিনালে ওপরের `curl ...` লাইনটা কপি করে পেস্ট করুন।
+- আগে থেকে Billcora থাকলে একই ফাইল বা কমান্ড চালালেই আপডেট হয়। আপনার গ্রাহক, বিল ও সেটিং মুছবে না।
+- প্রথম লগইন: `admin` / `admin123`। লগইনের পরেই পাসওয়ার্ড বদলে নিন।
+<!-- billcora-download-end -->
+
 ## 🚀 Overview
 
 **Billkora** is an enterprise-grade, highly versatile desktop billing and customer management solution. While engineered with robust features for ISPs, WISPs, and IT infrastructure providers, its modular design makes it universally adaptable for **any business** that handles recurring billing, client subscriptions, custom invoicing, and service collections.
