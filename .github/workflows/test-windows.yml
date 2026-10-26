@@ -3,44 +3,28 @@ on:
   workflow_dispatch:
 
 jobs:
-  windows:
-    name: Fresh Windows - real Setup.exe install, then update
+  update:
+    name: Windows - install 0.2.3 then update to latest
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - name: Download Setup.exe exactly as a customer would
+      - name: Download old (v0.2.3) and latest installers
         shell: pwsh
         run: |
           $ProgressPreference = 'SilentlyContinue'
-          Invoke-WebRequest "https://github.com/SINOBI-Melloflex/billkora/releases/latest/download/Billcora-Setup.exe" -OutFile "$env:RUNNER_TEMP\Setup.exe"
-          $m = (Get-Item "$env:RUNNER_TEMP\Setup.exe").Length / 1MB
-          Write-Host "Setup.exe MB: $m"
-          if ($m -lt 30) { throw "Setup.exe too small" }
+          Invoke-WebRequest "https://github.com/SINOBI-Melloflex/billkora/releases/download/v0.2.3/Billcora-Setup-0.2.3.exe" -OutFile "$env:RUNNER_TEMP\Old.exe"
+          Invoke-WebRequest "https://github.com/SINOBI-Melloflex/billkora/releases/latest/download/Billcora-Setup.exe" -OutFile "$env:RUNNER_TEMP\New.exe"
+          Get-ChildItem "$env:RUNNER_TEMP\*.exe" | Select-Object Name, Length
 
-      - name: Fresh install with /silent (like a brand new PC)
+      - name: Fresh install of 0.2.3 (silent)
         shell: pwsh
         run: |
-          $p = Start-Process "$env:RUNNER_TEMP\Setup.exe" -ArgumentList "/silent" -PassThru
-          if (-not $p.WaitForExit(900000)) { try { $p.Kill() } catch {}; throw "Setup did not finish in 15 minutes" }
-          Write-Host "Setup exit code: $($p.ExitCode)"
-          Get-Content "$env:TEMP\Billcora-Setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 40
-          if ($p.ExitCode -ne 0) { throw "Setup failed" }
-
-      - name: App is installed in its folder and works
-        shell: pwsh
-        run: |
-          if (-not (Test-Path C:\Billcora\server.js)) { throw "server.js missing" }
-          $port = (Get-Content C:\Billcora\port.txt).Trim()
-          Write-Host "port $port"
-          schtasks /Query /TN Billcora /V /FO LIST | Select-String "Run As User|Status"
-          $null = Invoke-WebRequest "http://127.0.0.1:$port/login" -Method Post -Body @{ username = "admin"; password = "admin123" } -SessionVariable s -UseBasicParsing
-          foreach ($pg in "/", "/zones", "/packages", "/payments", "/settings", "/users") {
-            $r = Invoke-WebRequest "http://127.0.0.1:$port$pg" -WebSession $s -UseBasicParsing
-            Write-Host "$pg -> $($r.StatusCode)"
-            if ($r.StatusCode -ne 200 -or $r.Content -match "<title>Sign in") { throw "$pg failed" }
-            if ($pg -eq "/" -and $r.Content -notmatch 'id="bc-upd"') { throw "update button missing" }
-          }
-          Write-Host "version.txt: $((Get-Content C:\Billcora\version.txt).Trim())"
+          $p = Start-Process "$env:RUNNER_TEMP\Old.exe" -ArgumentList "/silent" -PassThru
+          if (-not $p.WaitForExit(900000)) { try { $p.Kill() } catch {}; throw "Old setup did not finish" }
+          Write-Host "exit code: $($p.ExitCode)"
+          Get-Content "$env:TEMP\Billcora-Setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 30
+          if ($p.ExitCode -ne 0) { throw "old install failed" }
+          Write-Host "version: $((Get-Content C:\Billcora\version.txt).Trim())"
 
       - name: Put marker data in database and config
         shell: pwsh
@@ -51,70 +35,79 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "marker write failed" }
           Add-Content C:\Billcora\config.js "// kept-marker"
 
-      - name: Run the same Setup again (update of an existing install)
+      - name: Update to latest with the new Setup
         shell: pwsh
         run: |
-          $p = Start-Process "$env:RUNNER_TEMP\Setup.exe" -ArgumentList "/silent" -PassThru
-          if (-not $p.WaitForExit(900000)) { try { $p.Kill() } catch {}; throw "Update did not finish in 15 minutes" }
-          Write-Host "Update exit code: $($p.ExitCode)"
+          $p = Start-Process "$env:RUNNER_TEMP\New.exe" -ArgumentList "/silent" -PassThru
+          if (-not $p.WaitForExit(900000)) { try { $p.Kill() } catch {}; throw "Update did not finish" }
+          Write-Host "update exit code: $($p.ExitCode)"
           Get-Content "$env:TEMP\Billcora-Setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 40
           if ($p.ExitCode -ne 0) { throw "Update failed" }
 
-      - name: Data and settings survived the update, backup exists
+      - name: Data, settings, version and backup are correct after update
         shell: pwsh
         run: |
           $js = "const D=require('C:/Billcora/node_modules/better-sqlite3');const d=new D('C:/Billcora/billing.db',{readonly:true});console.log('MARKER=' + d.prepare('select x from zz_marker').get().x);"
           Set-Content -Path "$env:RUNNER_TEMP\check.js" -Value $js
-          $out = (& C:\Billcora\runtime\node.exe "$env:RUNNER_TEMP\check.js") -join ''
-          Write-Host $out
-          if ($out -notmatch 'MARKER=42') { throw "database marker lost" }
+          $o = (& C:\Billcora\runtime\node.exe "$env:RUNNER_TEMP\check.js") -join ''
+          Write-Host $o
+          if ($o -notmatch 'MARKER=42') { throw "database marker lost" }
           if (-not (Select-String -Path C:\Billcora\config.js -Pattern "kept-marker" -Quiet)) { throw "config.js was overwritten" }
           $b = @(Get-ChildItem C:\Billcora\backups -Directory -Filter "update-before-*")
           Write-Host "backups: $($b.Count)"
           if ($b.Count -lt 1) { throw "no backup folder" }
+          $v = (Get-Content C:\Billcora\version.txt).Trim()
+          Write-Host "version: $v"
+          if ($v -ne '0.2.4') { throw "version not updated" }
           $port = (Get-Content C:\Billcora\port.txt).Trim()
-          $r = Invoke-WebRequest "http://127.0.0.1:$port/login" -UseBasicParsing
-          if ($r.StatusCode -ne 200) { throw "app not up after update" }
-          Write-Host "update OK"
+          $null = Invoke-WebRequest "http://127.0.0.1:$port/login" -Method Post -Body @{ username = "admin"; password = "admin123" } -SessionVariable s -UseBasicParsing
+          foreach ($pg in "/", "/zones", "/packages", "/payments", "/settings", "/users") {
+            $r = Invoke-WebRequest "http://127.0.0.1:$port$pg" -WebSession $s -UseBasicParsing
+            Write-Host "$pg -> $($r.StatusCode)"
+            if ($r.StatusCode -ne 200 -or $r.Content -match "<title>Sign in") { throw "$pg failed" }
+          }
+          Write-Host "UPDATE OK"
 
       - name: Debug report
         if: failure()
         shell: pwsh
         run: |
-          Write-Host "--- Setup log ---"
           Get-Content "$env:TEMP\Billcora-Setup.log" -ErrorAction SilentlyContinue
-          Write-Host "--- Report files ---"
           Get-ChildItem "$env:USERPROFILE\Desktop","C:\Billcora" -Filter "Billcora-Setup-Report*.txt" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName; Get-Content $_.FullName }
-          Write-Host "--- backups folder ---"
-          Get-ChildItem C:\Billcora\backups -Recurse -Depth 1 -ErrorAction SilentlyContinue | Select-Object -First 30 FullName
-          Write-Host "--- manual robocopy test ---"
-          robocopy "C:\Billcora" "$env:RUNNER_TEMP\bk-test" /E /XD "C:\Billcora\node_modules" "C:\Billcora\runtime" "C:\Billcora\webview2" "C:\Billcora\logs" "C:\Billcora\backups" /NFL /NDL /NP
-          Write-Host "robocopy rc=$LASTEXITCODE"
+          Get-ChildItem C:\Billcora\backups -ErrorAction SilentlyContinue | Select-Object Name
 
-      - name: Repro exact
-        if: always()
+  fresh:
+    name: Windows - brand new PC, latest installer
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download latest installer
         shell: pwsh
         run: |
-          $app = "C:\Billcora"
-          function RunRc($flags, $name) {
-            $bk = "$app\backups\update-before-$name"
-            Remove-Item $bk -Recurse -Force -ErrorAction SilentlyContinue
-            $a = '"' + $app + '" "' + $bk + '" /E /XD "' + $app + '\node_modules" "' + $app + '\runtime" "' + $app + '\webview2" "' + $app + '\logs" "' + $app + '\backups" "' + $app + '\backup-*" ' + $flags
-            Write-Host ("ARGS: " + $a)
-            $psi = New-Object System.Diagnostics.ProcessStartInfo("robocopy.exe", $a)
-            $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
-            $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
-            $p = [System.Diagnostics.Process]::Start($psi)
-            $o = $p.StandardOutput.ReadToEnd(); $e = $p.StandardError.ReadToEnd()
-            $p.WaitForExit()
-            Write-Host ("RC=" + $p.ExitCode)
-            Write-Host $o
-            Write-Host ("STDERR: " + $e)
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest "https://github.com/SINOBI-Melloflex/billkora/releases/latest/download/Billcora-Setup.exe" -OutFile "$env:RUNNER_TEMP\New.exe"
+
+      - name: Fresh install (silent)
+        shell: pwsh
+        run: |
+          $p = Start-Process "$env:RUNNER_TEMP\New.exe" -ArgumentList "/silent" -PassThru
+          if (-not $p.WaitForExit(900000)) { try { $p.Kill() } catch {}; throw "Setup did not finish" }
+          Write-Host "exit code: $($p.ExitCode)"
+          Get-Content "$env:TEMP\Billcora-Setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 30
+          if ($p.ExitCode -ne 0) { throw "Setup failed" }
+
+      - name: App works
+        shell: pwsh
+        run: |
+          $port = (Get-Content C:\Billcora\port.txt).Trim()
+          $v = (Get-Content C:\Billcora\version.txt).Trim()
+          Write-Host "version: $v"
+          if ($v -ne '0.2.4') { throw "wrong version" }
+          $null = Invoke-WebRequest "http://127.0.0.1:$port/login" -Method Post -Body @{ username = "admin"; password = "admin123" } -SessionVariable s -UseBasicParsing
+          foreach ($pg in "/", "/zones", "/packages", "/payments", "/settings", "/users") {
+            $r = Invoke-WebRequest "http://127.0.0.1:$port$pg" -WebSession $s -UseBasicParsing
+            Write-Host "$pg -> $($r.StatusCode)"
+            if ($r.StatusCode -ne 200 -or $r.Content -match "<title>Sign in") { throw "$pg failed" }
+            if ($pg -eq "/" -and $r.Content -notmatch 'id="bc-upd"') { throw "update button missing" }
           }
-          Write-Host "===== run 1: exact flags ====="
-          RunRc "/NFL /NDL /NJH /NJS /NP" "r1"
-          Write-Host "===== run 2: verbose ====="
-          RunRc "/NP" "r2"
-          Write-Host "===== run 3: as seen by .NET Process, working dir = system32 ====="
-          Get-ChildItem "C:\Billcora\backups" | Select-Object Name
-          exit 0
+          Write-Host "FRESH OK"
