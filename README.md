@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/billcora-logo.png" alt="Billkora Logo" width="140" />
+  <img src="https://drive.google.com/uc?export=view&id=1aDEN61W9AxmXx2q_2nTjRSwwWUyqtv1g" alt="Billkora Logo" width="140" />
 </p>
 
 <h1 align="center">Billkora</h1>
