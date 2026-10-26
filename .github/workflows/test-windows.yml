@@ -90,3 +90,31 @@ jobs:
           Write-Host "--- manual robocopy test ---"
           robocopy "C:\Billcora" "$env:RUNNER_TEMP\bk-test" /E /XD "C:\Billcora\node_modules" "C:\Billcora\runtime" "C:\Billcora\webview2" "C:\Billcora\logs" "C:\Billcora\backups" /NFL /NDL /NP
           Write-Host "robocopy rc=$LASTEXITCODE"
+
+      - name: Repro exact
+        if: always()
+        shell: pwsh
+        run: |
+          $app = "C:\Billcora"
+          function RunRc($flags, $name) {
+            $bk = "$app\backups\update-before-$name"
+            Remove-Item $bk -Recurse -Force -ErrorAction SilentlyContinue
+            $a = '"' + $app + '" "' + $bk + '" /E /XD "' + $app + '\node_modules" "' + $app + '\runtime" "' + $app + '\webview2" "' + $app + '\logs" "' + $app + '\backups" "' + $app + '\backup-*" ' + $flags
+            Write-Host ("ARGS: " + $a)
+            $psi = New-Object System.Diagnostics.ProcessStartInfo("robocopy.exe", $a)
+            $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
+            $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
+            $p = [System.Diagnostics.Process]::Start($psi)
+            $o = $p.StandardOutput.ReadToEnd(); $e = $p.StandardError.ReadToEnd()
+            $p.WaitForExit()
+            Write-Host ("RC=" + $p.ExitCode)
+            Write-Host $o
+            Write-Host ("STDERR: " + $e)
+          }
+          Write-Host "===== run 1: exact flags ====="
+          RunRc "/NFL /NDL /NJH /NJS /NP" "r1"
+          Write-Host "===== run 2: verbose ====="
+          RunRc "/NP" "r2"
+          Write-Host "===== run 3: as seen by .NET Process, working dir = system32 ====="
+          Get-ChildItem "C:\Billcora\backups" | Select-Object Name
+          exit 0
