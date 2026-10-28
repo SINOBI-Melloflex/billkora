@@ -19,12 +19,12 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 
 [assembly: AssemblyTitle("Billcora Setup")]
-[assembly: AssemblyDescription("Billcora Setup 0.2.2")]
+[assembly: AssemblyDescription("Billcora Setup 0.3.1")]
 [assembly: AssemblyCompany("Billcora")]
 [assembly: AssemblyProduct("Billcora")]
 [assembly: AssemblyCopyright("Billcora")]
-[assembly: AssemblyVersion("0.2.2.0")]
-[assembly: AssemblyFileVersion("0.2.2.0")]
+[assembly: AssemblyVersion("0.3.1.0")]
+[assembly: AssemblyFileVersion("0.3.1.0")]
 
 class Btn : Control
 {
@@ -90,7 +90,7 @@ class Bar : Control
 
 class MainForm : Form
 {
-    const string Ver = "0.2.2";
+    const string Ver = "0.3.1";
     const string CountJs = @"const path=require('path');const app=process.argv[2];const out=[];
 try{const D=require(path.join(app,'node_modules','better-sqlite3'));const d=new D(path.join(app,'billing.db'),{fileMustExist:true});
 for(const t of ['customers','packages','routers','zones','users','invoices','payments']){try{out.push(t+'='+d.prepare('select count(*) c from '+t).get().c);}catch(e){out.push(t+'=-1');}}
@@ -108,11 +108,12 @@ console.log(out.join(';'));";
     int state = 0; bool isUpdate = false;
     static int Port = 4010;
     static string LastApp = "";
+    static bool Silent = false;
 
     int S(int v) { return (int)Math.Round(v * k); }
 
     [STAThread]
-    static void Main()
+    static void Main(string[] args)
     {
         try { SetProcessDPIAware(); } catch { }
         try { ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072; } catch { }
@@ -125,7 +126,14 @@ console.log(out.join(';'));";
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += delegate(object s, ThreadExceptionEventArgs e) { Fatal(e.Exception); };
         AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e) { Fatal(e.ExceptionObject as Exception); };
-        Application.Run(new MainForm());
+        foreach (string a in args) { if (a.Equals("/silent", StringComparison.OrdinalIgnoreCase)) Silent = true; }
+        MainForm mf = new MainForm();
+        if (Silent)
+        {
+            mf.ShowInTaskbar = false; mf.Opacity = 0;
+            mf.Shown += delegate { mf.txt.Text = FindInstall(); mf.OnMain(null, EventArgs.Empty); };
+        }
+        Application.Run(mf);
         GC.KeepAlive(mx);
     }
 
@@ -598,7 +606,7 @@ console.log(out.join(';'));";
             foreach (ZipArchiveEntry en in za.Entries)
             {
                 i++;
-                string rel = en.FullName.Replace('/', '\\');
+                string rel = en.FullName.Replace('/', '\\'); while (rel.StartsWith(".\\")) rel = rel.Substring(2);
                 if (rel.EndsWith("\\") || en.Name.Length == 0 || rel.Contains("..")) continue;
                 string low = rel.ToLowerInvariant();
                 if (low.StartsWith("billing.db") || low == ".secret" || low == "port.txt") continue;
@@ -788,7 +796,7 @@ console.log(out.join(';'));";
             state = newState; bar.Value = 100; bar.Visible = false;
             title.Text = head; sub.Height = S(240); sub.Text = text; lblStatus.Visible = false;
             btnMain.Text = mainText; btnMain.Enabled = true; btnCancel.Enabled = true; lblX.Visible = true;
-            btnCancel.Visible = false;
+            btnCancel.Visible = false; if (Silent) { Environment.ExitCode = (state == 2 ? 0 : 1); Close(); }
         }));
     }
 
@@ -816,15 +824,15 @@ console.log(out.join(';'));";
                 if (PortBusy(Port)) { int np = PickPort(); Log("port " + Port + " still busy, using " + np); Port = np; }
                 Step(10, "Taking a safety backup of your current version...");
                 backup = Path.Combine(app, "backups", "update-before-" + Ver + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"));
-                int rc = Exec("robocopy.exe", "\"" + app + "\" \"" + backup + "\" /E /XD \"" + app + "\\node_modules\" \"" + app + "\\runtime\" \"" + app + "\\webview2\" \"" + app + "\\logs\" \"" + app + "\\backups\" \"" + app + "\\backup-*\" /NFL /NDL /NJH /NJS /NP", out o);
-                if (rc >= 8) throw new Exception("robocopy exit " + rc);
+                int rc = Exec("robocopy.exe", "\"" + app + "\" \"" + backup + "\" /E /XD \"" + app + "\\node_modules\" \"" + app + "\\runtime\" \"" + app + "\\webview2\" \"" + app + "\\logs\" \"" + app + "\\backups\" /NFL /NDL /NJH /NJS /NP", out o);
+                if (rc >= 8) throw new Exception("robocopy exit " + rc + ": " + (o.Length > 400 ? o.Substring(0, 400) : o));
                 Step(16, "Counting your current data...");
                 before = Counts(app);
             }
             catch (Exception ex)
             {
                 try { StartBill(app); } catch { }
-                WriteReport(app, "backup failed: " + ex.Message);
+                Log("backup failed: " + ex); WriteReport(app, "backup failed: " + ex.Message);
                 Finish(3, "Nothing was changed", "The safety backup could not be made (" + ex.Message + "). Check free disk space and permissions, then try again. Billcora is running as before.", "Close");
                 return;
             }
