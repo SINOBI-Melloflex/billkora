@@ -58,7 +58,7 @@ jobs:
             $up = $false
             try { $port = (Get-Content C:\Billcora\port.txt).Trim(); $up = ((Invoke-WebRequest "http://127.0.0.1:$port/login" -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200) } catch {}
             Write-Host ("t=" + ($i*10) + "s version=" + $v + " up=" + $up)
-            if ($v -eq '0.2.7' -and $up) { $ok = $true; break }
+            if ($v -eq '0.2.8' -and $up) { $ok = $true; break }
           }
           if (-not $ok) { throw "app did not update itself in 10 minutes" }
 
