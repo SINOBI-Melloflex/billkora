@@ -1,0 +1,33 @@
+name: Daily update check
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Check what users download and update to
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check the update chain
+        run: |
+          set -e
+          B=https://github.com/SINOBI-Melloflex/billkora/releases/latest/download
+          curl -fsSL $B/update.json -o update.json
+          cat update.json; echo
+          VER=$(jq -r .version update.json)
+          WANT=$(jq -r .windows.sha256 update.json)
+          FILE=$(jq -r .windows.file update.json)
+          echo "latest version: $VER"
+          curl -fsSL -o setup.exe "https://github.com/SINOBI-Melloflex/billkora/releases/download/v$VER/$FILE"
+          GOT=$(sha256sum setup.exe | awk '{print $1}')
+          [ "$GOT" = "$WANT" ] || { echo "BAD: Windows Setup checksum does not match update.json"; exit 1; }
+          [ "$(curl -fsSL $B/version.txt | tr -d '\r\n ')" = "$VER" ] || { echo "BAD: version.txt does not match update.json"; exit 1; }
+          curl -fsSL -o /dev/null $B/install.sh
+          curl -fsSL -o app.zip $B/billcora-app-$VER.zip
+          curl -fsSL -o linux.tgz $B/billcora-linux.tar.gz
+          LW=$(curl -fsSL $B/billcora-linux.sha256 | awk '{print $1}')
+          LG=$(sha256sum linux.tgz | awk '{print $1}')
+          [ "$LG" = "$LW" ] || { echo "BAD: Linux package checksum does not match"; exit 1; }
+          echo "ALL OK - users can update to $VER"
